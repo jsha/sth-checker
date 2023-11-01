@@ -11,6 +11,9 @@
 // Each goroutine prints a summary of the request, including the start and end time,
 // the duration, and any error.
 //
+// Each goroutine actually fires off two requests for the same URL at the same time,
+// to see if errors are random or always happen for the same request at the same time.
+//
 // Because a new goroutine is fired off for each case, when one response is slow
 // it doesn't prevent new responses from being started.
 package main
@@ -40,19 +43,8 @@ func main() {
 func checkOldValue(logURL string) {
 	first := rand.Intn(10000)
 	second := first + 300
-	start := time.Now().UTC()
-	resp, err := http.Get(fmt.Sprintf("%s/ct/v1/get-sth-consistency?first=%d&second=%d", logURL, first, second))
-	end := time.Now().UTC()
-	if err == nil && resp.StatusCode != 200 {
-		var body []byte
-		body, err = io.ReadAll(resp.Body)
-		if err != nil {
-			log.Print("error reading error body")
-		}
-		err = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-	}
-	dur := end.Sub(start).Truncate(time.Millisecond)
-	log.Printf("OLD latency: %8s, Start: %s, End: %s, err=%s", dur, start, end, err)
+	go fetch("OLD", logURL, first, second)
+	go fetch("OLD", logURL, first, second)
 }
 
 func checkNewValue(logURL string) {
@@ -71,8 +63,13 @@ func checkNewValue(logURL string) {
 	}
 	second := treeSize.TreeSize - 1
 	first := second - 300
+	go fetch("NEW", logURL, first, second)
+	go fetch("NEW", logURL, first, second)
+}
+
+func fetch(label, logURL string, first, second int) {
 	start := time.Now().UTC()
-	resp, err = http.Get(fmt.Sprintf("%s/ct/v1/get-sth-consistency?first=%d&second=%d", logURL, first, second))
+	resp, err := http.Get(fmt.Sprintf("%s/ct/v1/get-sth-consistency?first=%d&second=%d", logURL, first, second))
 	end := time.Now().UTC()
 	if err == nil && resp.StatusCode != 200 {
 		var body []byte
@@ -83,5 +80,5 @@ func checkNewValue(logURL string) {
 		err = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
 	dur := end.Sub(start).Truncate(time.Millisecond)
-	log.Printf("NEW latency: %8s, Start: %s, End: %s, err=%s", dur, start, end, err)
+	log.Printf("%s latency: %8s, Start: %s, End: %s, err=%s", label, dur, start, end, err)
 }
