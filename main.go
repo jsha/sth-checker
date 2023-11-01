@@ -1,13 +1,18 @@
-// This is a program that takes as a flag the name of a certificate transparency log. It spawns two goroutines.
-// One goroutine repeatedly checks the certificate transparency log's get-sth-consistency endpoint for small random
-// values of the `first` and `second` parameters. Call this the "old values" goroutine.
+// This is a program to check the performance of a CT log's get-sth-consistency
+// endpoint for two categories of parameters: "old" (near the left hand side of
+// the tree) and "new" (near the right hand side of the tree).
 //
-// The second goroutine, called the "new values" goroutine, repeatedly checks the certificate transparency log's
-// get-sth endpoint and parses it to find the tree_size value. It then calls the get-sth-consistency endpoint with
-// second = tree_size - 1 and first = tree_size - 300.
+// Once per second, it fires off two goroutines. The "old" goroutine picks a random
+// of length 300 within the first 10,000 entries in the log and fetches get-sth-consistency.
 //
-// The checks on both goroutines use a timeout value of 30 seconds. After each check, they print the start time
-// of the check, the end time of the check, whether it was successful or not, and how long it took.
+// The "new" goroutine fetches get-sth, parses the tree_size value, and then calls
+// get-sth-consistency with second = tree_size - 1 and first = tree_size - 300.
+//
+// Each goroutine prints a summary of the request, including the start and end time,
+// the duration, and any error.
+//
+// Because a new goroutine is fired off for each case, when one response is slow
+// it doesn't prevent new responses from being started.
 package main
 
 import (
